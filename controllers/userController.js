@@ -1,4 +1,4 @@
-const User = require('../models/userModel');
+const User = require("../models/userModel");
 
 // Generate a dummy token (no longer using JWT)
 const generateToken = (id) => {
@@ -16,7 +16,7 @@ exports.registerUser = async (req, res) => {
     const userExists = await User.findOne({ username });
 
     if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: "User already exists" });
     }
 
     // Create user
@@ -26,7 +26,7 @@ exports.registerUser = async (req, res) => {
       fullName,
       role,
       email,
-      phone
+      phone,
     });
 
     if (user) {
@@ -36,14 +36,14 @@ exports.registerUser = async (req, res) => {
         fullName: user.fullName,
         role: user.role,
         email: user.email,
-        phone: user.phone
+        phone: user.phone,
       });
     } else {
-      res.status(400).json({ message: 'Invalid user data' });
+      res.status(400).json({ message: "Invalid user data" });
     }
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Server Error' });
+    res.status(500).json({ message: "Server Error" });
   }
 };
 // @desc    Auth user & get token
@@ -59,7 +59,7 @@ exports.loginUser = async (req, res) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Tên đăng nhập không tồn tại'
+        message: "Tên đăng nhập không tồn tại",
       });
     }
 
@@ -67,7 +67,7 @@ exports.loginUser = async (req, res) => {
     if (!user.active) {
       return res.status(401).json({
         success: false,
-        message: 'Tài khoản đã bị vô hiệu hóa'
+        message: "Tài khoản đã bị vô hiệu hóa",
       });
     }
 
@@ -76,7 +76,7 @@ exports.loginUser = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Mật khẩu không đúng'
+        message: "Mật khẩu không đúng",
       });
     }
 
@@ -96,14 +96,84 @@ exports.loginUser = async (req, res) => {
         role: user.role,
         email: user.email,
         phone: user.phone,
-        token: token
-      }
+        token: token,
+      },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error("Login error:", error);
     res.status(500).json({
       success: false,
-      message: 'Lỗi server'
+      message: "Lỗi server",
+    });
+  }
+};
+// @desc    Get user profile
+// @route   GET /api/users/profile
+// @access  Private
+exports.getUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("-password");
+
+    if (user) {
+      res.json({
+        success: true,
+        data: user,
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: "Không tìm thấy người dùng",
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi server",
+    });
+  }
+};
+
+// @desc    Update user profile
+// @route   PUT /api/users/profile
+// @access  Private
+exports.updateUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (user) {
+      user.fullName = req.body.fullName || user.fullName;
+      user.email = req.body.email || user.email;
+      user.phone = req.body.phone || user.phone;
+
+      if (req.body.password) {
+        user.password = req.body.password;
+      }
+
+      const updatedUser = await user.save();
+
+      res.json({
+        success: true,
+        data: {
+          _id: updatedUser._id,
+          username: updatedUser.username,
+          fullName: updatedUser.fullName,
+          role: updatedUser.role,
+          email: updatedUser.email,
+          phone: updatedUser.phone,
+        },
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: "Không tìm thấy người dùng",
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi server",
     });
   }
 };
