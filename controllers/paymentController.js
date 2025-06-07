@@ -129,3 +129,23 @@ const updatePayment = asyncHandler(async (req, res) => {
     throw new Error('Payment not found');
   }
 });
+
+// @desc    Get payments by household
+// @route   GET /api/payments/household/:id
+// @access  Private
+const getPaymentsByHousehold = asyncHandler(async (req, res) => {
+  const payments = await Payment.find({ household: req.params.id })
+    .populate('fee', 'name amount dueDate')
+    .populate('household', 'apartmentNumber');
+  res.json(payments);
+});
+
+// @desc    Get payments by fee
+// @route   GET /api/payments/fee/:id
+// @access  Private
+const getPaymentsByFee = asyncHandler(async (req, res) => {
+  const payments = await Payment.find({ fee: req.params.id })
+    .populate('fee', 'name amount dueDate')
+    .populate('household', 'apartmentNumber');
+  res.json(payments);
+});
