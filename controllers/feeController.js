@@ -123,3 +123,56 @@ exports.updateFee = async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 };
+
+// @desc    Delete a fee (hard delete)
+// @route   DELETE /api/fees/:id
+// @access  Private/Admin
+exports.deleteFee = async (req, res) => {
+  try {
+    const fee = await Fee.findById(req.params.id);
+    
+    if (!fee) {
+      return res.status(404).json({ message: 'Fee not found' });
+    }
+    
+    // Check if the fee is used in any payments
+    const Payment = require('../models/paymentModel');
+    const paymentsWithFee = await Payment.find({ fee: req.params.id });
+    
+    if (paymentsWithFee.length > 0) {
+      // If fee is used in payments, soft delete by setting active to false
+      fee.active = false;
+      await fee.save();
+      
+      return res.status(400).json({ 
+        message: 'Không thể xóa phí này vì đã có thanh toán sử dụng nó. Phí đã được vô hiệu hóa thay vì xóa.'
+      });
+    }
+    
+    // Hard delete if fee is not used in any payments
+    await Fee.findByIdAndDelete(req.params.id);
+    
+    res.json({ message: 'Fee deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    if (error.kind === 'ObjectId') {
+      return res.status(404).json({ message: 'Fee not found' });
+    }
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// @desc    Get fees by type
+// @route   GET /api/fees/type/:type
+// @access  Private
+exports.getFeesByType = async (req, res) => {
+  try {
+    const { type } = req.params;
+    const fees = await Fee.find({ feeType: type, active: true }).sort({ createdAt: -1 });
+    
+    res.json(fees);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+}; 
