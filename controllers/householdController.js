@@ -121,3 +121,58 @@ exports.updateHousehold = async (req, res) => {
     res.status(500).json({ message: "Server Error" });
   }
 };
+
+// @desc    Delete a household (hard delete)
+// @route   DELETE /api/households/:id
+// @access  Private/Admin
+exports.deleteHousehold = async (req, res) => {
+  try {
+    const household = await Household.findById(req.params.id);
+    
+    if (!household) {
+      return res.status(404).json({ message: 'Household not found' });
+    }
+    
+    // Check if there are residents belonging to this household
+    const residents = await Resident.find({ household: req.params.id });
+    if (residents.length > 0) {
+      return res.status(400).json({ 
+        message: 'Không thể xóa hộ gia đình này vì vẫn còn cư dân thuộc hộ. Vui lòng xóa hoặc chuyển các cư dân trước.'
+      });
+    }
+    
+    // Hard delete the household
+    await Household.findByIdAndDelete(req.params.id);
+    
+    res.json({ message: 'Household deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    if (error.kind === 'ObjectId') {
+      return res.status(404).json({ message: 'Household not found' });
+    }
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// @desc    Get residents in a household
+// @route   GET /api/households/:id/residents
+// @access  Private
+exports.getHouseholdResidents = async (req, res) => {
+  try {
+    const household = await Household.findById(req.params.id);
+    
+    if (!household) {
+      return res.status(404).json({ message: 'Household not found' });
+    }
+    
+    const residents = await Resident.find({ household: req.params.id });
+    
+    res.json(residents);
+  } catch (error) {
+    console.error(error);
+    if (error.kind === 'ObjectId') {
+      return res.status(404).json({ message: 'Household not found' });
+    }
+    res.status(500).json({ message: 'Server Error' });
+  }
+}; 
