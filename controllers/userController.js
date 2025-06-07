@@ -235,3 +235,99 @@ exports.deleteUser = async (req, res) => {
     });
   }
 };
+
+// @desc    Get user by ID
+// @route   GET /api/users/:id
+// @access  Private/Admin
+exports.getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+
+    if (user) {
+      res.json({
+        success: true,
+        data: user
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy người dùng'
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server'
+    });
+  }
+};
+
+// @desc    Update user
+// @route   PUT /api/users/:id
+// @access  Private/Admin
+exports.updateUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy người dùng'
+      });
+    }
+
+    // Không cho phép sửa username
+    if (req.body.username && req.body.username !== user.username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không thể thay đổi tên đăng nhập'
+      });
+    }
+
+    // Cập nhật thông tin
+    if (req.body.fullName) user.fullName = req.body.fullName;
+    if (req.body.role) user.role = req.body.role;
+    if (req.body.email !== undefined) user.email = req.body.email;
+    if (req.body.phone !== undefined) user.phone = req.body.phone;
+
+    // Chỉ cập nhật active nếu được chỉ định
+    if (req.body.active !== undefined) {
+      // Không cho phép vô hiệu hóa tài khoản của chính mình
+      if (user._id.toString() === req.user._id.toString()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Không thể vô hiệu hóa tài khoản của chính mình'
+        });
+      }
+      user.active = req.body.active;
+    }
+
+    // Cập nhật mật khẩu nếu có
+    if (req.body.password) {
+      user.password = req.body.password;
+    }
+
+    const updatedUser = await user.save();
+
+    res.json({
+      success: true,
+      data: {
+        _id: updatedUser._id,
+        username: updatedUser.username,
+        fullName: updatedUser.fullName,
+        role: updatedUser.role,
+        email: updatedUser.email,
+        phone: updatedUser.phone,
+        active: updatedUser.active
+      },
+      message: 'Cập nhật người dùng thành công'
+    });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server: ' + (error.message || 'Không thể cập nhật người dùng')
+    });
+  }
+}; 
