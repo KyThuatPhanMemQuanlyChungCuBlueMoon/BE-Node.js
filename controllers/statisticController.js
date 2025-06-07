@@ -224,3 +224,244 @@ exports.getPaymentStatus = async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 };
+
+
+// @desc    Get monthly payment report
+// @route   GET /api/statistics/monthly-report
+// @access  Private
+exports.getMonthlyReport = async (req, res) => {
+  try {
+    const { year, month } = req.query;
+
+    // Set date range for the report
+    const startDate = new Date(year || new Date().getFullYear(), (month ? month - 1 : new Date().getMonth()), 1);
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + 1);
+    endDate.setDate(0); // Last day of the month
+    endDate.setHours(23, 59, 59, 999);
+
+    // Get payments for the specified month
+    const payments = await Payment.find({
+      paymentDate: { $gte: startDate, $lte: endDate },
+      status: 'paid'
+    })
+      .populate('fee', 'name type amount')
+      .populate('household', 'apartmentNumber')
+      .sort({ paymentDate: 1 });
+
+    // Calculate totals by fee type
+    const totalsByType = {};
+    payments.forEach(payment => {
+      const type = payment.fee?.type || 'other';
+
+      if (!totalsByType[type]) {
+        totalsByType[type] = 0;
+      }
+
+      totalsByType[type] += payment.amount;
+    });
+
+    // Calculate total revenue
+    const totalRevenue = payments.reduce((sum, payment) => sum + payment.amount, 0);
+
+    // Get payment count by day of month
+    const paymentsByDay = {};
+    payments.forEach(payment => {
+      const day = payment.paymentDate.getDate();
+
+      if (!paymentsByDay[day]) {
+        paymentsByDay[day] = {
+          count: 0,
+          amount: 0
+        };
+      }
+
+      paymentsByDay[day].count += 1;
+      paymentsByDay[day].amount += payment.amount;
+    });
+
+    res.json({
+      period: {
+        year: startDate.getFullYear(),
+        month: startDate.getMonth() + 1,
+        startDate,
+        endDate
+      },
+      summary: {
+        totalRevenue,
+        paymentCount: payments.length,
+        totalsByType
+      },
+      paymentsByDay,
+      payments
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// Hàm chuyển đổi tên loại phí sang tiếng Việt
+const translateFeeType = (feeType) => {
+  const translations = {
+    'service': 'Dịch vụ',
+    'maintenance': 'Bảo trì',
+    'water': 'Nước',
+    'electricity': 'Điện',
+    'parking': 'Đỗ xe',
+    'internet': 'Internet',
+    'security': 'An ninh',
+    'cleaning': 'Vệ sinh',
+    'other': 'Khác'
+  };
+
+  return translations[feeType] || 'Khác';
+};
+
+// Hàm chuyển đổi tên phí thành dạng hiển thị ngắn gọn
+const translateFeeName = (feeName) => {
+  const feeTranslations = {
+    'Phí quản lý hàng tháng': 'Quản lý',
+    'Phí gửi xe ô tô': 'Gửi xe ô tô',
+    'Phí gửi xe máy': 'Gửi xe máy',
+    'Phí sửa chữa công trình chung': 'Sửa chữa chung',
+    'Phí bảo trì thang máy': 'Bảo trì thang máy',
+    'Phí an ninh': 'An ninh',
+    'Phí vệ sinh': 'Vệ sinh',
+    'Phí điện': 'Điện',
+    'Phí nước': 'Nước',
+    'Phí internet': 'Internet',
+    'Phí cable TV': 'Cable TV'
+  };
+
+  return feeTranslations[feeName] || feeName;
+};
+
+// Get total payment by month/year
+const getTotalPaymentsByMonth = asyncHandler(async (req, res) => {
+  const { year } = req.params;
+  const currentYear = parseInt(year) || new Date().getFullYear();
+
+  const result = await Payment.aggregate([
+    {
+      $match: {
+        status: 'paid',
+        paymentDate: {
+          $gte: new Date(`${currentYear}-01-01`),
+          $lte: new Date(`${currentYear}-12-31`)
+        }
+      }
+    },
+    {
+      $group: {
+        _id: { $month: '$paymentDate' },
+        total: { $sum: '$amount' },
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { _id: 1 }
+    }
+  ]);
+
+  // Fill in missing months with 0
+  const monthlyData = Array.from({ length: 12 }, (_, i) => {
+    const month = i + 1;
+    const found = result.find(r => r._id === month);
+    return {
+      month,
+      total: found ? found.total : 0,
+      count: found ? found.count : 0
+    };
+  });
+
+  res.json(monthlyData);
+});
+
+// Get payment statistics by payment method
+const getPaymentStatsByMethod = asyncHandler(async (req, res) => {
+  const result = await Payment.aggregate([
+    {
+      $match: {
+        status: 'paid'
+      }
+    },
+    {
+      $group: {
+        _id: '$method',
+        total: { $sum: '$amount' },
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  res.json(result);
+});
+
+// Get payment statistics by fee type
+const getPaymentStatsByFeeType = asyncHandler(async (req, res) => {
+  const result = await Payment.aggregate([
+    {
+      $match: {
+        status: 'paid'
+      }
+    },
+    {
+      $lookup: {
+        from: 'fees',
+        localField: 'fee',
+        foreignField: '_id',
+        as: 'feeDetails'
+      }
+    },
+    {
+      $unwind: '$feeDetails'
+    },
+    {
+      $group: {
+        _id: '$feeDetails.feeType',
+        total: { $sum: '$amount' },
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  res.json(result);
+});
+
+// Get payment statistics by month for dashboard
+const getMonthlyPaymentStats = asyncHandler(async (req, res) => {
+  const today = new Date();
+  const lastSixMonths = new Date(today.getFullYear(), today.getMonth() - 5, 1);
+
+  const result = await Payment.aggregate([
+    {
+      $match: {
+        status: 'paid',
+        paymentDate: { $gte: lastSixMonths }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: '$paymentDate' },
+          month: { $month: '$paymentDate' }
+        },
+        total: { $sum: '$amount' },
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { '_id.year': 1, '_id.month': 1 }
+    }
+  ]);
+
+  // Transform result into usable format
+  const monthlyStats = result.map(item => ({
+    month: `${item._id.month}/${item._id.year}`,
+    total: item.total,
+    count: item.count
+  }));
+
+  res.json(monthlyStats);
+}); 
