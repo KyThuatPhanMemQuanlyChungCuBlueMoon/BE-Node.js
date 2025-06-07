@@ -177,3 +177,61 @@ exports.updateUserProfile = async (req, res) => {
     });
   }
 };
+
+// @desc    Get all users
+// @route   GET /api/users
+// @access  Private/Admin
+exports.getUsers = async (req, res) => {
+  try {
+    const users = await User.find({}).select('-password');
+    res.json({
+      success: true,
+      data: users
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server'
+    });
+  }
+};
+
+// @desc    Delete user
+// @route   DELETE /api/users/:id
+// @access  Private/Admin
+exports.deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy người dùng'
+      });
+    }
+
+    // Không cho phép xóa tài khoản của chính mình
+    if (user._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không thể xóa tài khoản của chính mình'
+      });
+    }
+
+    // Instead of deleting, set active to false
+    user.active = false;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Đã vô hiệu hóa người dùng'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server'
+    });
+  }
+};
