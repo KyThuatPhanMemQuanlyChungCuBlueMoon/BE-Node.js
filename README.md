@@ -197,12 +197,12 @@ Khi chạy script tạo dữ liệu, hệ thống sẽ có:
 
 1. Clone project
 ```bash
-git clone https://github.com/vnquang24/KTPM-BE-ADMIN-MANAGER.git
+https://github.com/KyThuatPhanMemQuanlyChungCuBlueMoon/BE-Node.js.git
 ```
 
 2. Tạo feature branch
 ```bash
-git checkout -b feature/AmazingFeature
+git checkout -b feature/TA
 ```
 
 3. Add local repo
@@ -234,7 +234,7 @@ git commit -m "[update]: Thêm middleware xác thực"
 
 5. Push to branch
 ```bash
-git push origin feature/AmazingFeature
+git push origin feature/TA
 ```
 
 ### ⚠️ Lưu ý quan trọng
